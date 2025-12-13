@@ -1,0 +1,72 @@
+.landing-page {
+  font-family: Arial, sans-serif;
+  color: #222;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+.hero {
+  background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
+    url(../../assets/carpenters-kitchen-hero-bg.avif);
+  background-size: cover;
+  background-repeat: no-repeat;
+  color: white;
+  min-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 20px;
+}
+.hero h1 {
+  font-size: 3rem;
+  margin-bottom: 20px;
+}
+.hero p {
+  font-size: 1.2rem;
+  margin-bottom: 30px;
+}
+.hero-buttons button {
+  margin: 0 10px;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.primary-btn {
+  background-color: #ff7f50;
+  color: white;
+}
+.secondary-btn {
+  background-color: white;
+  color: #ff7f50;
+}
+.features {
+  padding: 80px 20px;
+  text-align: center;
+  background-color: #f9f9f9;
+}
+.features h2 {
+  font-size: 2rem;
+  margin-bottom: 40px;
+}
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 30px;
+}
+.feature-card {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+.feature-card:hover {
+  transform: translateY(-5px);
+}
+.feature-icon {
+  font-size: 2rem;
+  margin-bottom: 15px;
+}
