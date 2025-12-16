@@ -1,52 +1,83 @@
-import React, { useState } from "react";
-import { searchRecipes } from "../../api/spoonacular";
-import RecipeCard from "../../Components/RecipeCard";
+import { useState } from "react";
+import ImportRecipeForm from "../../Components/ImportRecipeForm";
 
-const RecipePage = () => {
-  const [query, setQuery] = useState("");
-  const [recipes, setRecipes] = useState([]);
-  const [loading, setLoading] = useState(false);
+export default function RecipePage() {
+  const [importedRecipes, setImportedRecipes] = useState([]);
 
-  const handleSearch = async () => {
-    if (!query) return;
-    setLoading(true);
-    const data = await searchRecipes(query);
-    setRecipes((data.results || []).map(normalizeRecipe));
-    setLoading(false);
+  const addRecipe = (recipe) => {
+    if (!importedRecipes.some((r) => r.sourceUrl === recipe.sourceUrl)) {
+      setImportedRecipes([recipe, ...importedRecipes]);
+    }
   };
 
-  const normalizeRecipe = (recipe) => ({
-    id: recipe.id,
-    title: recipe.title,
-    image: recipe.image,
-    summary: recipe.summary,
-    readyInMinutes: recipe.readyInMinutes,
-    servings: recipe.servings,
-  });
-
   return (
-    <div className="recipes-page">
-      <h1>Find Recipes</h1>
+    <div className="recipe-page">
+      <h1>Import Recipe From Your Favorite Sites</h1>
+      <ImportRecipeForm onRecipeImported={addRecipe} />
 
-      <div className="recipe-search">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search Recipes..."
-        />
-        <button onClick={handleSearch}>Search</button>
-      </div>
+      {importedRecipes.length > 0 && (
+        <div className="imported-recipes">
+          <h2>Imported Recipes</h2>
+          {importedRecipes.map((recipe, idx) => (
+            <div key={idx} className="recipe-display">
+              <h3>{recipe.title || "Untitled Recipe"}</h3>
 
-      {loading && <p>Loading...</p>}
+              {recipe.image && !recipe.image.startsWith("data:image/svg") && (
+                <img src={recipe.image} alt={recipe.title || "Recipe Image"} />
+              )}
 
-      <div className="recipe-grid">
-        {recipes.map((recipe) => (
-          <RecipeCard key={recipe.id} recipe={recipe} />
-        ))}
-      </div>
+              {(recipe.servings || recipe.time) && (
+                <p>
+                  {recipe.servings && (
+                    <>
+                      <strong>Servings:</strong> {recipe.servings} <br />
+                    </>
+                  )}
+                  {recipe.time && (
+                    <>
+                      <strong>Time:</strong> {recipe.time.replace(/\n/g, " ")}
+                    </>
+                  )}
+                </p>
+              )}
+
+              {recipe.ingredients?.length > 0 && (
+                <>
+                  <h4>Ingredients</h4>
+                  <ul>
+                    {recipe.ingredients.map((ing, i) => (
+                      <li key={i}>{ing}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {recipe.instructions?.length > 0 && (
+                <>
+                  <h4>Instructions</h4>
+                  <ol>
+                    {recipe.instructions.map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ol>
+                </>
+              )}
+
+              {recipe.sourceUrl && (
+                <p>
+                  <a
+                    href={recipe.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Original Recipe
+                  </a>
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-};
-
-export default RecipePage;
+}
