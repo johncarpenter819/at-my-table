@@ -132,10 +132,28 @@
   margin-bottom: 2.5rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  padding-top: 40px;
 }
 .recipe-display:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
+}
+.recipe-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+}
+.action-btn {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 .recipe-display h3 {
   font-size: 1.4rem;
@@ -165,6 +183,24 @@
 .recipe-display strong {
   color: #222;
 }
+.nutrition-grid {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #fdfdfd;
+  padding: 10px;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+}
+.nutrition-item {
+  font-size: 0.85rem;
+  background: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  text-transform: capitalize;
+}
 .recipe-display h4 {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
@@ -174,6 +210,24 @@
   list-style: none;
   padding-left: 0;
   margin-bottom: 1.5rem;
+}
+.recipe-ingredient-group-header {
+  list-style: none;
+  font-weight: bold;
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+  margin-left: -1.5rem;
+  font-size: 1.1rem;
+  color: #333;
+  text-transform: uppercase;
+}
+.recipe-ingredient-group-header,
+.recipe-instruction-group-header {
+  list-style: none;
+  font-weight: bold;
+  margin-left: -20px;
+  margin-top: 15px;
+  color: #333;
 }
 .recipe-display ul li {
   padding: 0.4rem 0;

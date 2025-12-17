@@ -11,6 +11,46 @@ export default function RecipePage({ username = "user" }) {
     }
   };
 
+  const handleDelete = (recipeId) => {
+    if (window.confirm("Are you sure you want to delete this recipe?")) {
+      setImportedRecipes(importedRecipes.filter((r) => r.id !== recipeId));
+    }
+  };
+
+  const handleFavorite = (recipeId) => {
+    setImportedRecipes(
+      importedRecipes.map((r) =>
+        r.id === recipeId ? { ...r, isFavorite: !r.isFavorite } : r
+      )
+    );
+  };
+
+  const handleShare = async (recipe) => {
+    const shareData = {
+      title: recipe.title,
+      text: `Check out this recipe: ${recipe.title}`,
+      url: recipe.sourceUrl || window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        throw new Error("Web Share API not supported");
+      }
+    } catch (err) {
+      navigator.clipboard.writeText(shareData.url);
+      alert("Recipe link copied to clipboard!");
+    }
+  };
+
+  const addToCalendar = (recipe) => {
+    const date = prompt("Enter a date (MM-DD-YYYY) for this meal:");
+    if (date) {
+      alert(`Scheduled ${recipe.title} for ${date}`);
+    }
+  };
+
   function ManualRecipeForm({ onSave }) {
     const [title, setTitle] = useState("");
     const [servings, setServings] = useState("");
@@ -100,6 +140,39 @@ export default function RecipePage({ username = "user" }) {
               <h2>Imported Recipes</h2>
               {importedRecipes.map((recipe, idx) => (
                 <div key={idx} className="recipe-display">
+                  <div className="recipe-actions">
+                    <button
+                      className={`action-btn fav ${
+                        recipe.isFavorite ? "active" : ""
+                      }`}
+                      onClick={() => handleFavorite(recipe.id)}
+                      title="Favorite"
+                    >
+                      {recipe.isFavorite ? "❤️" : "🤍"}
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => addToCalendar(recipe)}
+                      title="Add to Calendar"
+                    >
+                      📅
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => handleShare(recipe)}
+                      title="Share"
+                    >
+                      🔗
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => handleDelete(recipe)}
+                      title="Delete"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+
                   <h3>{recipe.title || "Untitled Recipe"}</h3>
 
                   {recipe.image &&
@@ -126,13 +199,39 @@ export default function RecipePage({ username = "user" }) {
                     </p>
                   )}
 
+                  {recipe.nutrition &&
+                    Object.keys(recipe.nutrition).length > 0 && (
+                      <div className="recipe-nutrition">
+                        <h4>Nutrition Information</h4>
+                        <div className="nutrition-grid">
+                          {Object.entries(recipe.nutrition).map(
+                            ([key, val]) => (
+                              <span key={key} className="nutrition-item">
+                                {val}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                   {recipe.ingredients?.length > 0 && (
                     <>
                       <h4>Ingredients</h4>
                       <ul>
-                        {recipe.ingredients.map((ing, i) => (
-                          <li key={i}>{ing}</li>
-                        ))}
+                        {recipe.ingredients.map((ing, i) => {
+                          if (ing.startsWith("**") && ing.endsWith("**")) {
+                            return (
+                              <li
+                                key={i}
+                                className="recipe-ingredient-group-header"
+                              >
+                                {ing.replace(/\*\*/g, "")}
+                              </li>
+                            );
+                          }
+                          return <li key={i}>{ing}</li>;
+                        })}
                       </ul>
                     </>
                   )}

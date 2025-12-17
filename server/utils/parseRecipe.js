@@ -29,10 +29,36 @@ export async function importRecipeFromUrl(url) {
       const title =
         document.querySelector("h1")?.innerText || "Untitled Recipe";
 
-      const ingredients =
-        Array.from(document.querySelectorAll(".wprm-recipe-ingredients li"))
-          .map((el) => el.innerText)
-          .filter(Boolean) || [];
+      const ingredients = [];
+      const ingredientGroups = document.querySelectorAll(
+        ".wprm-recipe-ingredient-group"
+      );
+
+      if (ingredientGroups.length > 0) {
+        ingredientGroups.forEach((group) => {
+          const groupName = group
+            .querySelector(".wprm-recipe-group-name")
+            ?.innerText.trim();
+          if (groupName) {
+            ingredients.push(`**${groupName}**`);
+          }
+
+          const items = Array.from(
+            group.querySelectorAll(".wprm-recipe-ingredient")
+          )
+            .map((el) => el.innerText.trim())
+            .filter(Boolean);
+
+          ingredients.push(...items);
+        });
+      } else {
+        const items = Array.from(
+          document.querySelectorAll(".wprm-recipe-ingredients li")
+        )
+          .map((el) => el.innerText.trim())
+          .filter(Boolean);
+        ingredients.push(...items);
+      }
 
       const instructions =
         Array.from(document.querySelectorAll(".wprm-recipe-instructions li"))
@@ -63,7 +89,63 @@ export async function importRecipeFromUrl(url) {
       const time =
         document.querySelector(".wprm-recipe-time")?.innerText || null;
 
-      return { title, ingredients, instructions, image, servings, time };
+      const nutrition = {};
+      const nutritionContainer = document.querySelector(
+        ".wprm-nutrition-label-container"
+      );
+
+      if (nutritionContainer) {
+        const getNutrient = (slug) => {
+          const container = nutritionContainer.querySelector(
+            `.wprm-nutrition-label-text-nutrition-container-${slug}`
+          );
+          if (!container) return null;
+
+          const label =
+            container
+              .querySelector(".wprm-nutrition-label-label")
+              ?.innerText.trim() || "";
+          const value =
+            container
+              .querySelector(".wprm-nutrition-label-value")
+              ?.innerText.trim() || "";
+          const unit =
+            container
+              .querySelector(".wprm-nutrition-label-unit")
+              ?.innerText.trim() || "";
+
+          if (value) {
+            return `${label} ${value} ${unit}`.trim();
+          }
+          return container.innerText.replace(/\s+/g, " ").trim();
+        };
+
+        const nutrientsToScrape = [
+          "calories",
+          "carbohydrates",
+          "protein",
+          "fat",
+          "saturated_fat",
+          "sodium",
+          "fiber",
+          "sugar",
+        ];
+
+        nutrientsToScrape.forEach((slug) => {
+          const val = getNutrient(slug);
+          if (val) nutrition[slug] = val;
+        });
+      }
+
+      return {
+        title,
+        ingredients,
+        instructions,
+        image,
+        servings,
+        time,
+        nutrition,
+      };
     });
 
     if (!recipe.image || recipe.image.includes("<svg")) {
