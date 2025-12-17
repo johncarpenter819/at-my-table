@@ -136,7 +136,7 @@
   padding-top: 40px;
 }
 .recipe-display:hover {
-  transform: translateY(-2px);
+  /* transform: translateY(-2px); */
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
 }
 .recipe-actions {
@@ -166,14 +166,9 @@
   display: block;
   margin: 1rem auto 1.25rem;
   max-width: 100%;
-  min-width: 500px;
-  min-height: 500px;
+  height: 1000px;
   object-fit: contain;
   border-radius: 12px;
-}
-.recipe-display img:hover {
-  transform: translateY(10px);
-  scale: 1;
 }
 .recipe-display p {
   font-size: 0.95rem;

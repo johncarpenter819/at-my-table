@@ -6,6 +6,15 @@ export async function importRecipeFromUrl(url) {
   const page = await browser.newPage();
 
   try {
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      if (["stylesheet", "font"].includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
     await page.goto(url, { waitUntil: "networkidle2" });
 
     await page.evaluate(async () => {
@@ -65,11 +74,16 @@ export async function importRecipeFromUrl(url) {
           .map((el) => el.innerText)
           .filter(Boolean) || [];
 
+      const ogImage = document
+        .querySelector('meta[property="og:image"]')
+        ?.getAttribute("content");
+
       const imgEl =
         document.querySelector(".wprm-recipe-image img") ||
         document.querySelector("img");
-      let image = null;
-      if (imgEl) {
+
+      let image = ogImage || null;
+      if (!image && imgEl) {
         image =
           imgEl.getAttribute("src") ||
           imgEl.getAttribute("data-lazy-src") ||
