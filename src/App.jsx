@@ -14,6 +14,19 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const wakeUpSever = async () => {
+      try {
+        await fetch("https://at-my-table.onrender.com/api/recipes/health");
+        console.log("Backend spinning up...");
+      } catch (err) {
+        console.log("Server wake-up ping sent.");
+      }
+    };
+
+    wakeUpSever();
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
