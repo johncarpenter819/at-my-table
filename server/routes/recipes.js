@@ -4,14 +4,14 @@ import { importRecipeFromUrl } from "../utils/parseRecipe.js";
 const router = express.Router();
 
 router.post("/import", async (req, res) => {
-  const { url } = req.body;
+  const { url, userId } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: "URL is required" });
   }
 
   try {
-    const recipe = await importRecipeFromUrl(url);
+    const recipe = await importRecipeFromUrl(url, userId);
     console.log("Imported recipe:", recipe);
     res.json({ success: true, recipe });
   } catch (err) {

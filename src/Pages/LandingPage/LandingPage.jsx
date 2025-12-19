@@ -34,7 +34,7 @@ const features = [
   },
 ];
 
-const LandingPage = () => {
+const LandingPage = ({ onStartTrial }) => {
   return (
     <div className="landing-page">
       <section className="hero">
@@ -45,7 +45,9 @@ const LandingPage = () => {
             time and money.
           </p>
           <div className="hero-buttons">
-            <button className="primary-btn">Start Free Trial</button>
+            <button className="primary-btn" onClick={onStartTrial}>
+              Start Free Trial
+            </button>
             <button className="secondary-btn">Learn More</button>
           </div>
         </div>

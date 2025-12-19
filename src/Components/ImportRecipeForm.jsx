@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { importRecipe } from "../services/recipes";
 
-export default function ImportRecipeForm({ onRecipeImported }) {
+export default function ImportRecipeForm({ onRecipeImported, userId }) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -14,7 +14,7 @@ export default function ImportRecipeForm({ onRecipeImported }) {
     setError("");
 
     try {
-      let importedRecipe = await importRecipe(url);
+      let importedRecipe = await importRecipe(url, userId);
       if (importedRecipe.ingredients) {
         importedRecipe.ingredients = importedRecipe.ingredients.map((ing) =>
           ing.replace(/^▢\s*/, "")

@@ -1,8 +1,8 @@
-export async function importRecipe(url) {
+export async function importRecipe(url, userId) {
   const res = await fetch("http://localhost:5000/api/recipes/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, userId }),
   });
 
   const data = await res.json();

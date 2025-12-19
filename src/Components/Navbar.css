@@ -39,6 +39,22 @@
   padding-bottom: 2px;
 }
 .navbar-user {
+  font-weight: 600;
   font-size: 1.1rem;
-  color: #666;
+  color: #4f46e5;
+  font-style: italic;
+}
+.logout-btn {
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s ease;
+}
+.logout-btn:hover {
+  background: #e63939;
 }

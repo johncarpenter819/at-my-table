@@ -1,8 +1,37 @@
-import puppeteer from "puppeteer";
+import "dotenv/config";
+import puppeteer from "puppeteer-core";
+import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
-export async function importRecipeFromUrl(url) {
-  const browser = await puppeteer.launch({ headless: true });
+console.log("--- ENV CHECK ---");
+console.log(
+  "Browserless Key:",
+  process.env.BROWSERLESS_API_KEY ? "FOUND" : "MISSING"
+);
+console.log("Supabase URL:", process.env.SUPABASE_URL ? "FOUND" : "MISSING");
+console.log("-----------------");
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export async function importRecipeFromUrl(url, userId) {
+  const { data: existingRecipe } = await supabase
+    .from("recipes")
+    .select("*")
+    .eq("source_url", url)
+    .single();
+
+  if (existingRecipe) {
+    console.log("Recipe found in DB. Returning cached version.");
+    return existingRecipe;
+  }
+
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`,
+  });
+
   const page = await browser.newPage();
 
   try {
@@ -32,7 +61,7 @@ export async function importRecipeFromUrl(url) {
       });
     });
 
-    await page.waitForSelector("img", { timeout: 15000 }).catch(() => null);
+    await page.waitForSelector("img", { timeout: 20000 }).catch(() => null);
 
     const recipe = await page.evaluate(() => {
       const title =
@@ -51,13 +80,11 @@ export async function importRecipeFromUrl(url) {
           if (groupName) {
             ingredients.push(`**${groupName}**`);
           }
-
           const items = Array.from(
             group.querySelectorAll(".wprm-recipe-ingredient")
           )
             .map((el) => el.innerText.trim())
             .filter(Boolean);
-
           ingredients.push(...items);
         });
       } else {
@@ -77,7 +104,6 @@ export async function importRecipeFromUrl(url) {
       const ogImage = document
         .querySelector('meta[property="og:image"]')
         ?.getAttribute("content");
-
       const imgEl =
         document.querySelector(".wprm-recipe-image img") ||
         document.querySelector("img");
@@ -99,7 +125,6 @@ export async function importRecipeFromUrl(url) {
 
       const servings =
         document.querySelector(".wprm-recipe-servings")?.innerText || null;
-
       const time =
         document.querySelector(".wprm-recipe-time")?.innerText || null;
 
@@ -114,7 +139,6 @@ export async function importRecipeFromUrl(url) {
             `.wprm-nutrition-label-text-nutrition-container-${slug}`
           );
           if (!container) return null;
-
           const label =
             container
               .querySelector(".wprm-nutrition-label-label")
@@ -127,14 +151,11 @@ export async function importRecipeFromUrl(url) {
             container
               .querySelector(".wprm-nutrition-label-unit")
               ?.innerText.trim() || "";
-
-          if (value) {
-            return `${label} ${value} ${unit}`.trim();
-          }
+          if (value) return `${label} ${value} ${unit}`.trim();
           return container.innerText.replace(/\s+/g, " ").trim();
         };
 
-        const nutrientsToScrape = [
+        [
           "calories",
           "carbohydrates",
           "protein",
@@ -143,9 +164,7 @@ export async function importRecipeFromUrl(url) {
           "sodium",
           "fiber",
           "sugar",
-        ];
-
-        nutrientsToScrape.forEach((slug) => {
+        ].forEach((slug) => {
           const val = getNutrient(slug);
           if (val) nutrition[slug] = val;
         });
@@ -172,13 +191,42 @@ export async function importRecipeFromUrl(url) {
 
     await browser.close();
 
-    return {
-      id: crypto.randomUUID(),
-      sourceUrl: url,
-      ...recipe,
-    };
+    // const scrapedData = await page.evaluate(() => {
+    //   const title =
+    //     document.querySelector("h1")?.innerText || "Untitled Recipe";
+    //   return {
+    //     title,
+    //     ingredients: [],
+    //     image: null,
+    //     servings: null,
+    //     time: null,
+    //     nutrition: {},
+    //   };
+    // });
+
+    const { data: newRecipe, error: saveError } = await supabase
+      .from("recipes")
+      .insert([
+        {
+          user_id: userId,
+          title: recipe.title,
+          source_url: url,
+          image_url: recipe.image,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          servings: recipe.servings,
+          prep_time: recipe.time,
+          nutrition: recipe.nutrition,
+        },
+      ])
+      .select()
+      .single();
+
+    if (saveError) throw new Error("Supabase Save Error: " + saveError.message);
+
+    return newRecipe;
   } catch (err) {
-    await browser.close();
+    if (browser) await browser.close();
     throw new Error("Failed to import recipe: " + err.message);
   }
 }

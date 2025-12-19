@@ -1,19 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../../supabaseClient";
 import ImportRecipeForm from "../../Components/ImportRecipeForm";
 import "./RecipesPage.css";
 
-export default function RecipePage({ username = "user" }) {
+export default function RecipePage({ session, username = "user" }) {
   const [importedRecipes, setImportedRecipes] = useState([]);
 
-  const addRecipe = (recipe) => {
-    if (!importedRecipes.some((r) => r.sourceUrl === recipe.sourceUrl)) {
-      setImportedRecipes([recipe, ...importedRecipes]);
+  const currentUserId = session.user.id;
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      const fetchRecipes = async () => {
+        const { data, error } = await supabase
+          .from("recipes")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          setImportedRecipes(data);
+        }
+      };
+
+      fetchRecipes();
+    }
+  }, [currentUserId]);
+
+  const addRecipe = async (recipe) => {
+    const isDatebaseRecord =
+      typeof recipe.id === "string" && recipe.id.length > 30;
+
+    if (isDatebaseRecord) {
+      setImportedRecipes((prev) => {
+        if (!prev.some((r) => r.id === recipe.id)) {
+          return [recipe, ...prev];
+        }
+        return prev;
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("recipes")
+      .insert([
+        {
+          user_id: currentUserId,
+          title: recipe.title,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          servings: recipe.servings,
+          prep_time: recipe.time,
+          image_url: recipe.image_url || recipe.image,
+          source_url: recipe.sourceUrl || recipe.source_url || null,
+          nutrition: recipe.nutrition || {},
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving manual recipe:", error);
+      alert("Could not save recipe to database");
+    } else {
+      setImportedRecipes((prev) => [data, ...prev]);
     }
   };
 
-  const handleDelete = (recipeId) => {
+  const handleDelete = async (recipe) => {
     if (window.confirm("Are you sure you want to delete this recipe?")) {
-      setImportedRecipes(importedRecipes.filter((r) => r.id !== recipeId));
+      const { error } = await supabase
+        .from("recipes")
+        .delete()
+        .eq("id", recipe.id);
+
+      if (!error) {
+        setImportedRecipes(importedRecipes.filter((r) => r.id !== recipe.id));
+      }
     }
   };
 
@@ -133,7 +195,10 @@ export default function RecipePage({ username = "user" }) {
       <h1>{username}'s Recipes</h1>
       <div className="recipes-layout">
         <div className="recipes-left">
-          <ImportRecipeForm onRecipeImported={addRecipe} />
+          <ImportRecipeForm
+            onRecipeImported={addRecipe}
+            userId={currentUserId}
+          />
 
           {importedRecipes.length > 0 && (
             <div className="imported-recipes">
@@ -175,13 +240,14 @@ export default function RecipePage({ username = "user" }) {
 
                   <h3>{recipe.title || "Untitled Recipe"}</h3>
 
-                  {recipe.image &&
-                    !recipe.image.startsWith("data:image/svg") && (
-                      <img
-                        src={recipe.image}
-                        alt={recipe.title || "Recipe Image"}
-                      />
-                    )}
+                  {(recipe.image_url || recipe.image) && (
+                    <img
+                      src={recipe.image_url || recipe.image}
+                      alt={recipe.title || "Recipe Image"}
+                      className="recipe-main-img"
+                      onError={(e) => (e.target.style.display = "none")}
+                    />
+                  )}
 
                   {(recipe.servings || recipe.time) && (
                     <p>
@@ -193,7 +259,10 @@ export default function RecipePage({ username = "user" }) {
                       {recipe.time && (
                         <>
                           <strong>Time:</strong>{" "}
-                          {recipe.time.replace(/\n/g, " ")}
+                          {(recipe.prep_time || recipe.time)?.replace(
+                            /\n/g,
+                            " "
+                          )}
                         </>
                       )}
                     </p>
@@ -250,7 +319,7 @@ export default function RecipePage({ username = "user" }) {
                   {recipe.sourceUrl && (
                     <p>
                       <a
-                        href={recipe.sourceUrl}
+                        href={recipe.source_url || recipe.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
