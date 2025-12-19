@@ -37,7 +37,7 @@ export async function importRecipeFromUrl(url, userId) {
   try {
     await page.setRequestInterception(true);
     page.on("request", (req) => {
-      if (["stylesheet", "font"].includes(req.resourceType())) {
+      if (["stylesheet", "font", "media"].includes(req.resourceType())) {
         req.abort();
       } else {
         req.continue();
@@ -228,5 +228,9 @@ export async function importRecipeFromUrl(url, userId) {
   } catch (err) {
     if (browser) await browser.close();
     throw new Error("Failed to import recipe: " + err.message);
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
