@@ -5,6 +5,12 @@ import recipeRoutes from "./routes/recipes.js";
 
 const app = express();
 
+const allowedOrigins = [
+  "https://at-my-table.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 app.use(
   cors({
     origin: function (origin, callback) {
