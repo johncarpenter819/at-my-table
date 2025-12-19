@@ -7,7 +7,14 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://at-my-table.vercel.app"],
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `CORS policy: ${origin} not allowed`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
     methods: ["GET", "POST"],
     credentials: true,
   })
