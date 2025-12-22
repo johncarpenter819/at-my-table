@@ -8,6 +8,17 @@ export async function importRecipe(url, userId) {
     body: JSON.stringify({ url, userId }),
   });
 
+  const contentType = res.headers.get("content-type");
+  if (
+    !redirect.ok ||
+    !contentType ||
+    !contentType.includes("application/json")
+  ) {
+    const errorText = await res.text();
+    console.error("Server raw error:", errorText);
+    throw new Error(`Server Error: ${res.status}. Check backend logs.`);
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to import recipe");
   return data.recipe;

@@ -79,30 +79,39 @@ export default function RecipePage({ session, username = "user" }) {
     }
   };
 
-  const handleFavorite = (recipeId) => {
-    setImportedRecipes(
-      importedRecipes.map((r) =>
-        r.id === recipeId ? { ...r, isFavorite: !r.isFavorite } : r
-      )
-    );
+  const handleFavorite = async (recipe) => {
+    const newFavoriteStatus = !recipe.is_favorite;
+
+    const { error } = await supabase
+      .form("recipes")
+      .update({ is_favorite: newFavoriteStatus })
+      .eq("id", recipe.id);
+
+    if (!error) {
+      setImportedRecipes((prev) =>
+        prev.map((r) =>
+          r.id === recipe.id ? { ...r, is_favorite: newFavoriteStatus } : r
+        )
+      );
+    }
   };
 
   const handleShare = async (recipe) => {
-    const shareData = {
-      title: recipe.title,
-      text: `Check out this recipe: ${recipe.title}`,
-      url: recipe.sourceUrl || window.location.href,
-    };
+    const recipeDetails = `
+      Check out this recipe: ${recipe.title}
+      Ingredients: ${recipe.ingredients?.join(", ")}
+      Instructions: ${recipe.instructions?.join(" ")}
+      `;
+
+    const subject = encodeURIComponent(`Recipe: ${recipe.title}`);
+    const body = encodeURIComponent(recipeDetails);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
 
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        throw new Error("Web Share API not supported");
-      }
+      await navigator.clipboard.writeText(recipeDetails);
+      alert("Recipe details copied to clipboard!");
     } catch (err) {
-      navigator.clipboard.writeText(shareData.url);
-      alert("Recipe link copied to clipboard!");
+      console.error("Failed to copy!", err);
     }
   };
 
