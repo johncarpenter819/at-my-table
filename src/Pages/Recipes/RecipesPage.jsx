@@ -83,7 +83,7 @@ export default function RecipePage({ session, username = "user" }) {
     const newFavoriteStatus = !recipe.is_favorite;
 
     const { error } = await supabase
-      .form("recipes")
+      .from("recipes")
       .update({ is_favorite: newFavoriteStatus })
       .eq("id", recipe.id);
 

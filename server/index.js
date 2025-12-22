@@ -27,6 +27,12 @@ app.use(
 );
 
 app.use(express.json());
+
+app.get("/api/recipes/health", (req, res) => {
+  console.log("Health check hit");
+  res.json({ status: "ok" });
+});
+
 app.use("/api/recipes", recipeRoutes);
 
 const PORT = process.env.PORT || 5000;

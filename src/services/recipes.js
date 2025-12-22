@@ -9,11 +9,7 @@ export async function importRecipe(url, userId) {
   });
 
   const contentType = res.headers.get("content-type");
-  if (
-    !redirect.ok ||
-    !contentType ||
-    !contentType.includes("application/json")
-  ) {
+  if (!res.ok || !contentType || !contentType.includes("application/json")) {
     const errorText = await res.text();
     console.error("Server raw error:", errorText);
     throw new Error(`Server Error: ${res.status}. Check backend logs.`);
