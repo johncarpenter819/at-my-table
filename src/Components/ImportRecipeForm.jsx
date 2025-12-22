@@ -36,7 +36,7 @@ export default function ImportRecipeForm({ onRecipeImported, userId }) {
     <div className="import-recipe-form">
       <form onSubmit={handleSubmit}>
         <input
-          type="url"
+          type="text"
           placeholder="Paste recipe URL here"
           value={url}
           onChange={(e) => setUrl(e.target.value)}

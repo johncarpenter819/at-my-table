@@ -219,7 +219,7 @@ export default function RecipePage({ session, username = "user" }) {
                       className={`action-btn fav ${
                         recipe.isFavorite ? "active" : ""
                       }`}
-                      onClick={() => handleFavorite(recipe.id)}
+                      onClick={() => handleFavorite(recipe)}
                       title="Favorite"
                     >
                       {recipe.isFavorite ? "❤️" : "🤍"}
