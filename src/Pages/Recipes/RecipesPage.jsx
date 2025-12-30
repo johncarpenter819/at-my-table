@@ -4,9 +4,12 @@ import ImportRecipeForm from "../../Components/ImportRecipeForm";
 import "./RecipesPage.css";
 
 export default function RecipePage({ session, username = "user" }) {
+  const [toastMessage, setToastMessage] = useState("");
   const [importedRecipes, setImportedRecipes] = useState([]);
 
   const currentUserId = session.user.id;
+
+  const cleanIngredient = (text) => text.replace(/^[▢•\-–—_]+\s*/g, "").trim();
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -46,7 +49,7 @@ export default function RecipePage({ session, username = "user" }) {
         {
           user_id: currentUserId,
           title: recipe.title,
-          ingredients: recipe.ingredients,
+          ingredients: recipe.ingredients?.map(cleanIngredient),
           instructions: recipe.instructions,
           servings: recipe.servings,
           prep_time: recipe.time,
@@ -93,6 +96,15 @@ export default function RecipePage({ session, username = "user" }) {
           r.id === recipe.id ? { ...r, is_favorite: newFavoriteStatus } : r
         )
       );
+
+      showToast(
+        newFavoriteStatus
+          ? `"${recipe.title}" added to favorites!`
+          : `"${recipe.title}" removed from favorites.`
+      );
+    } else {
+      console.error("Failed to update favorite:", error);
+      showToast("Could not update favorite status. Please try again");
     }
   };
 
@@ -120,6 +132,11 @@ export default function RecipePage({ session, username = "user" }) {
     if (date) {
       alert(`Scheduled ${recipe.title} for ${date}`);
     }
+  };
+
+  const showToast = (message) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(""), 3000);
   };
 
   function ManualRecipeForm({ onSave }) {
@@ -179,7 +196,7 @@ export default function RecipePage({ session, username = "user" }) {
         <label>
           Ingredients (One per Line)
           <textarea
-            rows="50"
+            rows="10"
             value={ingredientsText}
             onChange={(e) => setIngredientsText(e.target.value)}
           />
@@ -188,7 +205,7 @@ export default function RecipePage({ session, username = "user" }) {
         <label>
           Instructions (One per Line)
           <textarea
-            rows="50"
+            rows="10"
             value={instructionsText}
             onChange={(e) => setInstructionsText(e.target.value)}
           />
@@ -202,6 +219,7 @@ export default function RecipePage({ session, username = "user" }) {
   return (
     <div className="recipe-page">
       <h1>{username}'s Recipes</h1>
+      {toastMessage && <div className="toast">{toastMessage}</div>}
       <div className="recipes-layout">
         <div className="recipes-left">
           <ImportRecipeForm
@@ -217,12 +235,12 @@ export default function RecipePage({ session, username = "user" }) {
                   <div className="recipe-actions">
                     <button
                       className={`action-btn fav ${
-                        recipe.isFavorite ? "active" : ""
+                        recipe.is_favorite ? "active" : ""
                       }`}
                       onClick={() => handleFavorite(recipe)}
                       title="Favorite"
                     >
-                      {recipe.isFavorite ? "❤️" : "🤍"}
+                      {recipe.is_favorite ? "❤️" : "🤍"}
                     </button>
                     <button
                       className="action-btn"
@@ -325,7 +343,7 @@ export default function RecipePage({ session, username = "user" }) {
                     </>
                   )}
 
-                  {recipe.sourceUrl && (
+                  {(recipe.sourceUrl || recipe.source_url) && (
                     <p>
                       <a
                         href={recipe.source_url || recipe.sourceUrl}

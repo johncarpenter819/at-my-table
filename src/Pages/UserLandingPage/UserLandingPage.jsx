@@ -1,40 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { supabase } from "../../supabaseClient";
 import "./UserLandingPage.css";
-
-//Dummy Data until API
-
-const favoriteRecipes = [
-  {
-    id: 1,
-    title: "Spaghetti Bolognese",
-    image: "Pasta-Bolognese-TIMG.jpg",
-    ingredients: [
-      { name: "Ground Beef", quantity: "1 lb" },
-      { name: "Tomato Sauce", quantity: "1 jar" },
-      { name: "Spaghetti", quantity: "1 box" },
-    ],
-  },
-  {
-    id: 2,
-    title: "Chicken Stir Fry",
-    image: "csf.jpeg",
-    ingredients: [
-      { name: "Chicken Breast", quantity: "1 lb" },
-      { name: "Broccoli", quantity: "1 head" },
-      { name: "Soy Sauce", quantity: "2 tbsp" },
-    ],
-  },
-  {
-    id: 3,
-    title: "Avocado Toast",
-    image: "at.jpeg",
-    ingredients: [
-      { name: "Avocado", quantity: "1" },
-      { name: "Bread", quantity: "2 slices" },
-      { name: "Salt", quantity: "1 pinch" },
-    ],
-  },
-];
 
 const monthBackgrounds = {
   0: "bg-jan.jpg",
@@ -52,115 +18,235 @@ const monthBackgrounds = {
 };
 
 const UserLandingPage = ({ username = "user" }) => {
+  const [favoriteRecipes, setFavoriteRecipes] = useState([]);
   const [calendarData, setCalendarData] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [groceryList, setGroceryList] = useState([]);
+  const [manualGroceryList, setManualGroceryList] = useState([]);
   const [newItem, setNewItem] = useState("");
+  const [session, setSession] = useState(null);
 
-  const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // --- INITIALIZATION ---
+  useEffect(() => {
+    const initPage = async () => {
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+      setSession(currentSession);
+
+      if (currentSession?.user?.id) {
+        // Fetch Favorites
+        const { data: favs } = await supabase
+          .from("recipes")
+          .select("*")
+          .eq("user_id", currentSession.user.id)
+          .eq("is_favorite", true);
+        setFavoriteRecipes(favs || []);
+
+        // Fetch Meal Plans
+        const { data: mealsData } = await supabase
+          .from("meal_plans")
+          .select("id, planned_date, recipe_id, recipes(title)")
+          .eq("user_id", currentSession.user.id);
+
+        const mealMap = {};
+        mealsData?.forEach((m) => {
+          if (!mealMap[m.planned_date]) mealMap[m.planned_date] = [];
+          mealMap[m.planned_date].push({
+            planId: m.id,
+            recipeId: m.recipe_id,
+            title: m.recipes?.title,
+          });
+        });
+        setCalendarData(mealMap);
+
+        // Fetch Grocery Overrides/Manual Items
+        const { data: groceryRecords } = await supabase
+          .from("grocery_lists")
+          .select("items")
+          .eq("user_id", currentSession.user.id)
+          .maybeSingle();
+        if (groceryRecords) setManualGroceryList(groceryRecords.items || []);
+      }
+    };
+    initPage();
+  }, []);
+
+  // --- PERSISTENCE ---
+  const saveGroceryToDb = async (list) => {
+    if (!session?.user?.id) return;
+    const { error } = await supabase
+      .from("grocery_lists")
+      .upsert(
+        { user_id: session.user.id, items: list },
+        { onConflict: "user_id" }
+      );
+    if (error) console.error("DB Save Error:", error.message);
+  };
+
+  // --- GROCERY AGGREGATION & LOGIC ---
+  const fullGroceryList = useMemo(() => {
+    const totals = {};
+
+    // Helper to turn strings like "1 1/2" into 1.5
+    const parseQty = (qtyStr) => {
+      if (!qtyStr || typeof qtyStr !== "string") return parseFloat(qtyStr) || 0;
+      try {
+        if (qtyStr.includes("/")) {
+          const parts = qtyStr.split(" ");
+          if (parts.length > 1) {
+            const [n, d] = parts[1].split("/").map(Number);
+            return parseFloat(parts[0]) + n / d;
+          }
+          const [n, d] = qtyStr.split("/").map(Number);
+          return n / d;
+        }
+        return parseFloat(qtyStr) || 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    // 1. Process all ingredients from the calendar
+    Object.values(calendarData)
+      .flat()
+      .forEach((meal) => {
+        const recipe = favoriteRecipes.find((r) => r.id === meal.recipeId);
+        recipe?.ingredients?.forEach((ing) => {
+          const numMatch = ing.match(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(\.\d+)?)/);
+          const rawQty = numMatch ? numMatch[0] : "1";
+          const remaining = ing.replace(rawQty, "").trim();
+          const parts = remaining.split(" ");
+          const unit = parts[0]?.length < 10 ? parts[0] : "";
+          const name = unit ? parts.slice(1).join(" ") : remaining;
+
+          const key = `recipe-${name
+            .toLowerCase()
+            .replace(/\s+/g, "-")}-${unit.toLowerCase()}`;
+
+          if (totals[key]) {
+            const currentVal = parseQty(totals[key].qty.toString());
+            const addedVal = parseQty(rawQty);
+            totals[key].qty = (currentVal + addedVal).toString();
+          } else {
+            totals[key] = { id: key, name, qty: rawQty, unit, isManual: false };
+          }
+        });
+      });
+
+    // 2. Apply Manual Overrides & Add Manual Items
+    // We convert manualGroceryList to a map for quick lookup
+    const finalItemsMap = { ...totals };
+    manualGroceryList.forEach((mItem) => {
+      finalItemsMap[mItem.id] = mItem;
+    });
+
+    return Object.values(finalItemsMap);
+  }, [calendarData, favoriteRecipes, manualGroceryList]);
+
+  const updateGroceryItem = async (id, changes) => {
+    let newList;
+    const existingIndex = manualGroceryList.findIndex((item) => item.id === id);
+
+    if (existingIndex > -1) {
+      newList = manualGroceryList.map((item) =>
+        item.id === id ? { ...item, ...changes } : item
+      );
+    } else {
+      // Find the aggregated item to create the initial override entry
+      const itemToOverride = fullGroceryList.find((item) => item.id === id);
+      newList = [...manualGroceryList, { ...itemToOverride, ...changes }];
+    }
+
+    setManualGroceryList(newList);
+    await saveGroceryToDb(newList);
+  };
+
+  const addItemToGrocery = async (name) => {
+    if (!name.trim()) return;
+    const newItemObj = {
+      id: `manual-${Date.now()}`,
+      name,
+      qty: "1",
+      unit: "",
+      isManual: true,
+    };
+    const newList = [...manualGroceryList, newItemObj];
+    setManualGroceryList(newList);
+    setNewItem("");
+    await saveGroceryToDb(newList);
+  };
+
+  const deleteGroceryItem = async (id) => {
+    const newList = manualGroceryList.filter((item) => item.id !== id);
+    setManualGroceryList(newList);
+    await saveGroceryToDb(newList);
+  };
+
+  // --- CALENDAR LOGIC ---
+  const addMealToCalendar = async (dateStr, recipe) => {
+    const { data, error } = await supabase
+      .from("meal_plans")
+      .insert([
+        {
+          user_id: session.user.id,
+          planned_date: dateStr,
+          recipe_id: recipe.id,
+        },
+      ])
+      .select();
+
+    if (!error) {
+      setCalendarData((prev) => ({
+        ...prev,
+        [dateStr]: [
+          ...(prev[dateStr] || []),
+          { planId: data[0].id, recipeId: recipe.id, title: recipe.title },
+        ],
+      }));
+    }
+  };
+
+  const removeMealFromCalendar = async (dateStr, planId) => {
+    const { error } = await supabase
+      .from("meal_plans")
+      .delete()
+      .eq("id", planId);
+    if (!error) {
+      setCalendarData((prev) => ({
+        ...prev,
+        [dateStr]: prev[dateStr].filter((m) => m.planId !== planId),
+      }));
+    }
+  };
 
   const getMonthDays = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const days = [];
-    for (let i = 0; i < firstDay; i++) days.push(null);
-    for (let d = 1; d <= daysInMonth; d++) days.push(new Date(year, month, d));
+    const days = Array(firstDay).fill(null);
+    for (let d = 1; d <= new Date(year, month + 1, 0).getDate(); d++)
+      days.push(new Date(year, month, d));
     return days;
-  };
-
-  const days = getMonthDays();
-
-  const addMealToCalendar = (date, recipe) => {
-    const recipeTitle = typeof recipe === "string" ? recipe : recipe.title;
-
-    setCalendarData((prev) => {
-      const newCalendar = { ...prev, [date]: recipeTitle };
-
-      const groceryMap = {};
-      const recipeCounts = {};
-
-      Object.values(newCalendar).forEach((title) => {
-        if (title) recipeCounts[title] = (recipeCounts[title] || 0) + 1;
-      });
-
-      favoriteRecipes.forEach((r) => {
-        const count = recipeCounts[r.title] || 0;
-        if (count > 0 && r.ingredients) {
-          r.ingredients.forEach((ing) => {
-            const parts = ing.quantity.split(" ");
-            const ingAmount = parseFloat(parts[0]) * count;
-            const ingUnit = parts[1] || "";
-
-            if (groceryMap[ing.name]) {
-              groceryMap[ing.name].amount += ingAmount;
-            } else {
-              groceryMap[ing.name] = {
-                name: ing.name,
-                amount: ingAmount,
-                unit: ingUnit,
-              };
-            }
-          });
-        }
-      });
-      setGroceryList(
-        Object.values(groceryMap).map((item, index) => ({
-          ...item,
-          id: index + 1,
-        }))
-      );
-
-      return newCalendar;
-    });
-  };
-
-  const addItemToGrocery = (itemName) => {
-    if (!itemName.trim()) return;
-
-    setGroceryList((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        name: itemName,
-        amount: 1,
-        unit: "",
-      },
-    ]);
-    setNewItem("");
-  };
-
-  const updateGroceryQuantity = (id, amount) => {
-    setGroceryList((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, amount: Number(amount) } : item
-      )
-    );
   };
 
   return (
     <div className="user-landing-page">
       <section className="greeting">
-        <h1>Welcome to {username}'s Kitchen</h1>
-        <p>
-          Plan your meals, save and share recipes, and organize your grocery
-          list!
-        </p>
+        <h1>{username}'s Kitchen</h1>
       </section>
 
       <section className="favorites">
-        <h2>Your Favorite Recipes</h2>
+        <h2>Favorites</h2>
         <div className="recipe-cards">
-          {favoriteRecipes.map((recipe) => (
+          {favoriteRecipes.map((r) => (
             <div
-              key={recipe.id}
+              key={r.id}
               className="recipe-card"
               draggable
-              onDragStart={(e) => e.dataTransfer.setData("recipeId", recipe.id)}
+              onDragStart={(e) => e.dataTransfer.setData("recipeId", r.id)}
             >
-              <img src={recipe.image} alt={recipe.title} />
-              <h3>{recipe.title}</h3>
+              <img src={r.image_url || r.image} alt={r.title} />
+              <h3>{r.title}</h3>
             </div>
           ))}
         </div>
@@ -181,7 +267,6 @@ const UserLandingPage = ({ username = "user" }) => {
           >
             ◀
           </button>
-
           <h2>
             {currentMonth.toLocaleString("default", { month: "long" })}{" "}
             {currentMonth.getFullYear()}
@@ -200,15 +285,6 @@ const UserLandingPage = ({ username = "user" }) => {
             ▶
           </button>
         </div>
-
-        <div className="weekdays">
-          {daysOfWeek.map((day) => (
-            <div key={day} className="weekday">
-              {day}
-            </div>
-          ))}
-        </div>
-
         <div
           className="calendar-grid-month"
           style={{
@@ -216,46 +292,39 @@ const UserLandingPage = ({ username = "user" }) => {
               monthBackgrounds[currentMonth.getMonth()]
             })`,
             backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
           }}
         >
-          {days.map((day, index) => {
-            if (day === null)
-              return <div key={index} className="empty-day"></div>;
-
-            const dateString = day.toISOString().split("T")[0];
-            const mealTitle = calendarData[dateString] || "";
-
+          {getMonthDays().map((day, idx) => {
+            if (!day) return <div key={idx} className="empty-day"></div>;
+            const ds = `${day.getFullYear()}-${String(
+              day.getMonth() + 1
+            ).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
             return (
               <div
-                key={dateString}
+                key={ds}
                 className="calendar-day-month"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
-                  const recipeId = Number(e.dataTransfer.getData("recipeId"));
-                  const recipe = favoriteRecipes.find((r) => r.id === recipeId);
-                  if (recipe) addMealToCalendar(dateString, recipe);
+                  const rid = e.dataTransfer.getData("recipeId");
+                  const recipe = favoriteRecipes.find(
+                    (r) => String(r.id) === rid
+                  );
+                  if (recipe) addMealToCalendar(ds, recipe);
                 }}
               >
                 <span className="day-number">{day.getDate()}</span>
-                <div className="meal-slot">
-                  {mealTitle ? (
-                    <strong>{mealTitle}</strong>
-                  ) : (
-                    <span className="drag-meal-placeholder">
-                      Drag Meal Here
-                    </span>
-                  )}
+                <div className="meal-slots">
+                  {(calendarData[ds] || []).map((m) => (
+                    <div key={m.planId} className="meal-tag">
+                      <span>{m.title}</span>
+                      <button
+                        onClick={() => removeMealFromCalendar(ds, m.planId)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <input
-                  type="text"
-                  placeholder="Add Text"
-                  value={calendarData[dateString] || ""}
-                  onChange={(e) =>
-                    addMealToCalendar(dateString, e.target.value)
-                  }
-                />
               </div>
             );
           })}
@@ -264,7 +333,7 @@ const UserLandingPage = ({ username = "user" }) => {
 
       <div className="bottom-panel">
         <section className="grocery-list">
-          <h2>Your Grocery List</h2>
+          <h2>Grocery List</h2>
           <div className="grocery-headers">
             <span>Name</span>
             <span>Qty</span>
@@ -272,26 +341,35 @@ const UserLandingPage = ({ username = "user" }) => {
             <span></span>
           </div>
           <ul>
-            {groceryList.map((item) => (
+            {fullGroceryList.map((item) => (
               <li key={item.id} className="grocery-item">
-                <span>{item.name}</span>
+                <span className="grocery-name">{item.name}</span>
                 <input
-                  type="number"
-                  min="1"
-                  value={item.amount}
+                  type="text"
+                  value={item.qty || ""}
                   onChange={(e) =>
-                    updateGroceryQuantity(item.id, e.target.value)
+                    updateGroceryItem(item.id, { qty: e.target.value })
                   }
-                  className="quantity-input"
+                  className="grocery-qty-input"
                 />
-                <span className="unit">{item.unit}</span>
+                <select
+                  value={item.unit || ""}
+                  onChange={(e) =>
+                    updateGroceryItem(item.id, { unit: e.target.value })
+                  }
+                  className="grocery-unit-select"
+                >
+                  <option value="">—</option>
+                  <option value="cup">cup</option>
+                  <option value="oz">oz</option>
+                  <option value="lb">lb</option>
+                  <option value="tbsp">tbsp</option>
+                  <option value="tsp">tsp</option>
+                  <option value="g">g</option>
+                </select>
                 <button
                   className="grocery-item-delete-btn"
-                  onClick={() =>
-                    setGroceryList((prev) =>
-                      prev.filter((i) => i.id !== item.id)
-                    )
-                  }
+                  onClick={() => deleteGroceryItem(item.id)}
                 >
                   ✕
                 </button>
@@ -300,23 +378,17 @@ const UserLandingPage = ({ username = "user" }) => {
           </ul>
           <div className="add-item">
             <input
-              type="text"
-              placeholder="Add item..."
               value={newItem}
               onChange={(e) => setNewItem(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newItem.trim() !== "") {
-                  addItemToGrocery(newItem.trim());
-                  setNewItem("");
-                }
-              }}
+              onKeyDown={(e) => e.key === "Enter" && addItemToGrocery(newItem)}
+              placeholder="Add extra item (e.g. Milk)..."
             />
           </div>
         </section>
 
         <section className="nutrition-info">
           <h2>Nutrition Info</h2>
-          <p>Select meals to see nutrition per day.</p>
+          <p>Totals based on your calendar.</p>
         </section>
       </div>
     </div>

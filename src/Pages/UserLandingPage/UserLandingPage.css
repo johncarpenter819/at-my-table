@@ -144,6 +144,18 @@
   padding-bottom: 5px;
   margin-bottom: 5px;
 }
+.grocery-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.grocery-actions button {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
 .grocery-item-delete-btn {
   background: transparent;
   border: none;
